@@ -1,4 +1,5 @@
-import os
+import sys
+import time
 
 # playlist
 import googleapiclient.discovery
@@ -7,12 +8,13 @@ import googleapiclient.discovery
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
 
-#to go faster, comment the input lines below and hard codes values here
+# to go faster, comment the input lines below and hard codes values here
 global PLID
 global GSheetID
 global worksheetIndex
 global column
 global offset
+
 
 def initSheet():
     scope = ['https://spreadsheets.google.com/feeds']
@@ -20,12 +22,13 @@ def initSheet():
     client = gspread.authorize(creds)
     return client.open_by_key(GSheetID).get_worksheet(worksheetIndex)
 
-def initPlaylist(nextPageToken = ""):
+
+def initPlaylist(nextPageToken=""):
     api_service_name = "youtube"
     api_version = "v3"
     DEVELOPER_KEY = open("client.secret.txt", 'r').read()
     youtube = googleapiclient.discovery.build(
-        api_service_name, api_version, developerKey = DEVELOPER_KEY)
+        api_service_name, api_version, developerKey=DEVELOPER_KEY)
     if nextPageToken == "":
         request = youtube.playlistItems().list(
             part="snippet,contentDetails",
@@ -39,8 +42,24 @@ def initPlaylist(nextPageToken = ""):
             playlistId=PLID,
             pageToken=nextPageToken
         )
-    results = request.execute()
+    while True:
+        try:
+            results = request.execute()
+        except Exception as e:
+            retry = input("The following error was detected {}\n. Would you like to [r]etry now, retry in a [m]inute, or [S]top ? ".format(e))
+            if retry == 'r':
+                print("Retrying...\n")
+            elif retry == 'm':
+                print("Zzzz...\n")
+                time.sleep(65)  # Just to be sure
+                print("Retrying...\n")
+            else:
+                sys.exit()
+            continue
+        break
+
     return results
+
 
 # To go faster, comment those lines and hardcode values up top
 print("Welcome to the worksheet updater !", end="\n")
@@ -58,7 +77,22 @@ while True:
     for element in currentResults["items"]:
         compteur += 1
         print("{}. {}".format(compteur, element), end="\n")
-        sheet.update_acell("{}{}".format(column, offset + compteur), '=HYPERLINK("https://youtube.com/watch?v=' + element["contentDetails"]["videoId"] + '"; "' + element["snippet"]["title"].replace('"', "'") + '")')
+        while True:
+            try:
+                sheet.update_acell("{}{}".format(column, offset + compteur), '=HYPERLINK("https://youtube.com/watch?v=' +
+                                   element["contentDetails"]["videoId"] + '"; "' + element["snippet"]["title"].replace('"', "'") + '")')
+            except Exception as e:
+                retry = input("The following error was detected {}\n. Would you like to [r]etry now, retry in a [m]inute, or [S]top ? ".format(e))
+                if retry == 'r':
+                    print("Retrying...\n")
+                elif retry == 'm':
+                    print("Zzzz...\n")
+                    time.sleep(65)  # Just to be sure
+                    print("Retrying...\n")
+                else:
+                    sys.exit()
+                continue
+            break
     if not "nextPageToken" in currentResults:
         break
     token = currentResults["nextPageToken"]
